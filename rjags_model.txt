@@ -1,0 +1,240 @@
+model {
+  ##############Parameters###################
+    #Index n: patient number Index i: Observed Class (ordering is the same as in u). Index j: Test. Index k: Latent Class. Index h: outcomes of the culture test. Index l: Measurands(1: Colonization, 2: Gene,3: Toxin)
+    #y[n]: The observed class of the nth individual
+    #p[n,i]: Probability the nth patient is in the ith observed class
+    #N = sample size
+    #pI[n,k,j]: Individual probability that the nth individual is positive on test j given they are in latent class k
+    #qI[n,k,h]: Individual probability that the nth individual has outcome h-1 on test 7 given they are in latent class k
+    #I[n]: Latent infection intensity in the nth patient
+    #LC1: Colonization -, Toxin - , Toxin gene -, Toxin gene expression -
+    #LC2: Colonization +, Toxin -, Toxin gene -, Toxin gene expression -
+    #LC3: Colonization +, Toxin +, Toxin gene +, Toxin gene expression -
+    #LC4: Colonization +, Toxin +, Toxin gene +, Toxin gene expression +
+    
+ 
+    #Tests 1,2,3,5 measure infection   
+    #Test 1: SIMOA A
+    #Test 2: SIMOA B
+    #Test 3: CCNA
+    #Test 4: VidasGDH
+    #Test 5: Vidas Toxin
+    #Test 6: NAAT
+    #Test 7: Cdiff culture 
+    #Test 8: Toxigenic culture combined
+    #Test 6 measures gene
+    #Test 4 measures colonization
+    #Test 7 measures a mix of colonization and toxin
+  #########################Likelihood##################################
+  for(n in 1:N) {
+  
+    I[n] ~ dnorm(0,1)
+    LC[n] ~ dcat(pLC[1:4])
+    
+    for (j in 1:7) {
+
+      y[n, j] ~ dbern(prob[n,j])
+      ystar[n, j] ~ dbern(prob[n,j])
+      prob[n,j] <- pI[n,1,j]*(LC[n]==1) + pI[n,2,j]*(LC[n]==2) + pI[n,3,j]*(LC[n]==3) + pI[n,4,j]*(LC[n]==4)
+
+    }
+    
+      y[n, 8] ~ dbern(prob[n,8])
+      ystar[n, 8] ~ dbern(prob[n,8])
+      index[n] <- y[n,7]+1
+      prob[n,8] <- p[n,index[n]] 
+      p[n,2]<- pI[n,1,8]*(LC[n]==1) + pI[n,2,8]*(LC[n]==2) + pI[n,3,8]*(LC[n]==3) + pI[n,4,8]*(LC[n]==4) 
+      p[n,1]<- 0
+
+
+    for(j in c(1,2,3,5)) {
+    
+      pI[n,1,j] <- phi(a1[j] + b1[j]*I[n])
+      pI[n,2,j] <- pI[n,1,j]
+      pI[n,3,j] <- pI[n,1,j]
+      pI[n,4,j] <- phi(a4[j] + b4[j]*I[n])
+      
+    }
+    
+    for(j in c(4,7)) {
+  
+    pI[n,1,j] <- phi(a1[j])
+    pI[n,2,j] <- phi(a2[j]+ b2[j]*I[n])
+    pI[n,3,j] <- pI[n,2,j]
+    pI[n,4,j] <- pI[n,2,j]
+
+    }
+
+# for tests 6 and 8
+
+    pI[n,1,6] <- phi(a1[6])
+    pI[n,2,6] <- pI[n,1,6]
+    pI[n,3,6] <- phi(a3[6]+ b3[6]*I[n])
+    pI[n,4,6] <- pI[n,3,6]
+    
+    pI[n,1,8] <- pI.p[index[n],n,1]
+    pI[n,2,8] <- pI[n,1,8]
+    pI[n,3,8] <- pI.p[index[n],n,3] 
+    pI[n,4,8] <- pI[n,3,8]
+    
+    pI.p[2,n,1] <- phi(a1[8])
+    pI.p[2,n,3] <- phi(a3[8]+ b3[8]*I[n])
+    pI.p[1,n,1] <- 0
+    pI.p[1,n,3] <- 0
+    
+
+    #Individual sensitivity/specificity
+    for(j in 1:numtest) { 
+    
+#   the following calculations were commented out in favour of subject level calculations though the results are very similar (except for Toxigenic culture where subject level calculations are needed)
+
+#   w.r.t colonization
+#      si_col[n,j] <- (pI[n,2,j]*pLC[2] + pI[n,3,j]*pLC[3] + pI[n,4,j]*pLC[4])/(1 - pLC[1])
+#      ci_col[n,j] <- 1 - pI[n,1,j]
+    
+      #w.r.t Gene
+#      si_gene[n,j] <- (pI[n,3,j]*pLC[3] + pI[n,4,j]*pLC[4])/(pLC[3] + pLC[4])
+#      ci_gene[n,j] <- ((1-pI[n,1,j])*pLC[1] + (1-pI[n,2,j])*pLC[2])/(pLC[1] + pLC[2])
+    
+      #w.r.t Gene expression
+#      si_toxin[n,j] <- pI[n,4,j]
+#      ci_toxin[n,j] <- ((1-pI[n,1,j])*pLC[1] + (1-pI[n,2,j])*pLC[2] + (1-pI[n,3,j])*pLC[3])/(1 - pLC[4])
+
+    
+      #w.r.t colonization
+      num.sen.col[n,j]<- y[n,j]*((LC[n]==2)+(LC[n]==3)+(LC[n]==4))
+      den.sen.col[n,j] <- ((LC[n]==2)+(LC[n]==3)+(LC[n]==4))
+      num.sp.col[n,j]<- (1-y[n,j])*(LC[n]==1)
+      den.sp.col[n,j] <- (LC[n]==1)
+
+      #w.r.t Gene
+      num.sen.gene[n,j]<- y[n,j]*((LC[n]==3)+(LC[n]==4))
+      den.sen.gene[n,j] <- ((LC[n]==3)+(LC[n]==4))
+      num.sp.gene[n,j]<- (1-y[n,j])*((LC[n]==1)+(LC[n]==2))
+      den.sp.gene[n,j] <- ((LC[n]==1)+(LC[n]==2))
+
+      #w.r.t Gene expression
+      num.sen.genexp[n,j]<- y[n,j]*((LC[n]==4))
+      den.sen.genexp[n,j] <- (LC[n]==4)
+      num.sp.genexp[n,j]<- (1-y[n,j])*((LC[n]==1)+(LC[n]==2)+(LC[n]==3))
+      den.sp.genexp[n,j] <- ((LC[n]==1)+(LC[n]==2)+(LC[n]==3))
+
+  }
+
+  }
+  
+  #Priors
+
+
+  x1 ~ dbeta(1,1)
+  x2 ~ dbeta(1,1)
+  x4 ~ dbeta(1,1)
+
+  z ~ dbeta(1,1)
+  p14 ~ dunif(0,z)
+  p24 ~ dunif(z,1)
+  
+  for(j in 1:8) {
+
+    a1[j] ~ dnorm(0,1)
+    a2[j] ~ dnorm(0,1)
+    a3[j] ~ dnorm(0,1)
+    a4[j] ~ dnorm(0,1)
+    
+# random effects coefficients 
+# non-zero values only for b1 and b4 which influence the toxin tests
+# setting b1 and b4 to 0 reduces to conditional independence model
+
+    b1[j] <- 0
+    b2[j] ~ dnorm(0,1) I(0,)
+    b4[j] ~ dnorm(0,1) I(0,)
+    b3[j] ~ dnorm(0,1) I(0,)
+
+  }
+  pLC ~ ddirch(c(1,1,1,1))
+  
+  ################################Parameters of Interest#####################################
+  #Prevalence of colonization
+  prev_col <- pLC[2] + pLC[3] + pLC[4]
+  
+  #Prevalence of toxin gene
+  prev_gene <- pLC[3] + pLC[4]
+  
+  #Prevalence of gene expression
+  prev_toxin <- pLC[4]
+  
+ #Sensitivity and specificity
+ for(j in 1:numtest){
+
+  # test positivity
+  testp[j] <- mean(ystar[,j])
+
+  #w.r.t colonization
+  s_col[j] <- sum(num.sen.col[,j])/(sum(den.sen.col[,j])+0.0001)
+  c_col[j] <- sum(num.sp.col[,j])/(sum(den.sp.col[,j])+0.0001)
+  
+  #w.r.t gene
+  s_gene[j] <- sum(num.sen.gene[,j])/(sum(den.sen.gene[,j])+0.0001)
+  c_gene[j] <- sum(num.sp.gene[,j])/(sum(den.sp.gene[,j])+0.0001)
+  
+  #w.r.t gene expression
+  s_toxin[j] <- sum(num.sen.genexp[,j])/(sum(den.sen.genexp[,j])+0.0001)
+  c_toxin[j] <- sum(num.sp.genexp[,j])/(sum(den.sp.genexp[,j])+0.0001)
+}
+
+################Model Verification#########################
+#Observed and Expected correlation
+for(j in 1:observedclass) {
+  for (i in 1:N2) {
+      yy_p[i,j] <- (sum(abs(ystar[i,]-v[j,]))==0)
+       for (k in 1:4) { ppvi[i,j,k] <- (pat[i]==j)*(LC[i]==k) }
+    }
+    exp_freq[j]=sum(yy_p[,j])    
+    for (k in 1:4) { ppv[j,k]=sum(ppvi[,j,k])/yy[j]}
+}
+
+exp_avg <- exp_freq %*% v/N2
+for(j1 in 1:numtest) {
+  for(j2 in 1:numtest) {
+    for(i in 1:observedclass) {
+      B[j1,j2,i] <- v[i,j1]*v[i,j2]
+    }
+    exp_cov[j1,j2] <- inprod(exp_freq,B[j1,j2,])/N2 - exp_avg[j1]*exp_avg[j2]
+    exp_cor[j1,j2] <- exp_cov[j1,j2]/(pow(10,-25) + (sqrt(exp_cov[j1,j1]))*(sqrt(exp_cov[j2,j2])))      
+  }
+}
+res_cor <- obs_cor - exp_cor
+  r12 <- res_cor[1,2]
+  r13 <- res_cor[1,3]
+  r14 <- res_cor[1,4]
+  r15 <- res_cor[1,5]
+  r16 <- res_cor[1,6]
+  r17 <- res_cor[1,7]
+  r18 <- res_cor[1,8]
+  r23 <- res_cor[2,3]
+  r24 <- res_cor[2,4]
+  r25 <- res_cor[2,5]
+  r26 <- res_cor[2,6]
+  r27 <- res_cor[2,7]
+  r28 <- res_cor[2,8]
+  r34 <- res_cor[3,4]
+  r35 <- res_cor[3,5]
+  r36 <- res_cor[3,6]
+  r37 <- res_cor[3,7]
+  r38 <- res_cor[3,8]
+  r45 <- res_cor[4,5]
+  r46 <- res_cor[4,6]
+  r47 <- res_cor[4,7]
+  r48 <- res_cor[4,8]
+  r56 <- res_cor[5,6]
+  r57 <- res_cor[5,7]
+  r58 <- res_cor[5,8]
+  r67 <- res_cor[6,7]
+  r68 <- res_cor[6,8]
+  r78 <- res_cor[7,8]
+
+#Expected vs observed pattern frequency
+
+obsminusexp <- yy - exp_freq
+
+}
